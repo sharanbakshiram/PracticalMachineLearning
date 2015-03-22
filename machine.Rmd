@@ -1,0 +1,136 @@
+---
+title: "Untitled"
+output: html_document
+---
+
+This is an R Markdown document. Markdown is a simple formatting syntax for authoring HTML, PDF, and MS Word documents. For more details on using R Markdown see <http://rmarkdown.rstudio.com>.
+
+When you click the **Knit** button a document will be generated that includes both content as well as the output of any embedded R code chunks within the document. You can embed an R code chunk like this:
+
+```{r}
+summary(cars)
+```
+
+You can also embed plots, for example:
+
+```{r, echo=FALSE}
+plot(cars)
+```
+
+Note that the `echo = FALSE` parameter was added to the code chunk to prevent printing of the R code that generated the plot.
+
+---
+title: "Project Writeup - Practical Machine Learning"
+author: "Sharan Bakshiram"
+date: "21 March 2015"
+output: html_document
+---
+#Background
+
+Now it is possible to collect a large amount of data about personal activity relatively inexpensively using devices such as Jawbone Up, Nike FuelBand, and Fitbit.These type of devices are part of the quantified self movement - a group of enthusiasts who take measurements about themselves regularly to improve their health, to find patterns in their behavior, or because they are tech geeks. One thing that people regularly do is quantify how much of a particular activity they do, but they rarely quantify how well they do it. Our goal in this project will be to use data from accelerometers on the belt, forearm, arm, and dumbell of 6 participants. They were asked to perform barbell lifts correctly and incorrectly in 5 different ways. For more information one may visit the website here: http://groupware.les.inf.puc-rio.br/har (see the section on the Weight Lifting Exercise Dataset)."
+
+
+#Data Cleaning
+
+Data import, importing Blanks, "NA" and "#DIV/0!" as NA's.
+```{r}
+setwd("/Users/sharan/Desktop/Sharan/Coursera_R")
+pmlTrain<-read.csv("pml-training.csv", header=T, na.strings=c("","NA", "#DIV/0!"))
+pmlTest<-read.csv("pml-testing.csv", header=T, na.string=c("","NA", "#DIV/0!"))
+```
+
+Pre-proessing the training data set.Removing the variables with at least one "NA" from the analysis. Only 60 Variables left from initial 160.
+```{r}
+noNATrain<-pmlTrain[, apply(pmlTrain, 2, function(x) !any(is.na(x)))] 
+dim(noNATrain)
+```
+
+The variables which were related to time and user information also removed. Finally left with 52 variables.
+```{r}
+cleanTrain<-noNATrain[,-c(1:8)]
+dim(cleanTrain)
+```
+To predict the test 20 cases same variables were retained in Test data set (Validation Data set).
+```{r}
+cleantest<-pmlTest[,names(cleanTrain[,-52])]
+dim(cleantest)
+```
+
+#Data Partition and Process
+
+Partitioning the cleaned Training data set into 70% Training and 30% Test data sets.
+**Random Forests** Technique will be used to predict the outcome of this exercise.
+
+```{r}
+library(caret)
+inTrain<-createDataPartition(y=cleanTrain$classe, p=0.70,list=F)
+training<-cleanTrain[inTrain,] 
+test<-cleanTrain[-inTrain,] 
+#Training and test set dimensions
+dim(training)
+dim(test)
+```
+#Algorithm
+
+**Random Forest** trees were generated for the 70% Training data set
+using cross-validation. 
+
+```{r}
+library(caret)
+set.seed(1234)
+#Build trainControl for Cross - Validation
+TC<-trainControl(method="cv", number=5, allowParallel=T, verbose=T)
+TreeFit<-train(classe~.,data=training, method="rf", trControl=TC, verbose=F)
+```
+
+The algorithm was checked on the paritioned 30% Test data set to calculate the accuracy and estimated error of prediction.
+```{r}
+TestPred<-predict(TreeFit,newdata=test)
+confusionMatrix(TestPred,test$classe)
+```
+
+
+
+#Project Submission
+
+Predicting the output for 20 cases provided in the validation data set.
+```{r}
+Val20<-predict(TreeFit,newdata=cleantest)
+Val20
+```
+
+Writing 20 Files using the script provided.
+```{r}
+setwd("/Users/sharan/Desktop/Sharan/Coursera_R")
+getwd()
+pml_write_files = function(x){
+  n = length(x)
+  for(i in 1:n){
+    filename = paste0("problem_id_",i,".txt")
+    write.table(x[i],file=filename,quote=FALSE,row.names=FALSE,col.names=FALSE)
+  }
+}
+pml_write_files(Val20)
+```
+
+Other Algorithms were also tested but Random Forest yields the best accuracy. The prediction for the 20 cases were also similar.
+
+#Conclusion
+
+**Out of Sample Error Estimation**
+```{r}
+outOfSampleError.accuracy<-sum(TestPred==test$classe)/length(TestPred)
+outOfSampleError <- (1 - outOfSampleError.accuracy)*100
+paste0("Out of sample error estimation: ", round(outOfSampleError,digits=2),"%")
+```
+The out of sample error estimation is 0.27%
+
+
+**Accuracy**
+```{r}
+paste0("Confusion Matrix accuracy estimation: ", round((outOfSampleError.accuracy)*100,digits=2),"%")
+```
+
+The Accuracy estimation is 99.73%
+
+
